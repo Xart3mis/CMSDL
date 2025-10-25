@@ -1,14 +1,21 @@
 pub mod url;
 use url::get_url;
 
+#[cfg(all(any(target_os = "linux", target_os = "macos"), unix))]
 use flate2::read::GzDecoder;
+#[cfg(all(any(target_os = "linux", target_os = "macos"), unix))]
 use tar::Archive;
 
+#[cfg(target_os = "windows")]
 use zip::ZipArchive;
+
+#[cfg(target_os = "windows")]
+use std::io::Cursor;
+
+use which::which;
 
 use std::{
     env, io,
-    io::Cursor,
     path::{Path, PathBuf},
 };
 
@@ -36,6 +43,32 @@ pub fn fetch_geckodriver() -> Option<PathBuf> {
         archive.unwrap().extract(".").unwrap();
 
         if let Ok(path) = expand_relative_path("geckodriver.exe") {
+            return Some(path);
+        }
+    }
+
+    None
+}
+
+pub fn find_geckodriver() -> Option<PathBuf> {
+    let name = "geckodriver";
+    let cwd = std::env::current_dir().ok()?;
+
+    #[cfg(windows)]
+    let candidates = [name.to_string(), format!("{name}.exe")];
+
+    #[cfg(unix)]
+    let candidates = [name.to_string()];
+
+    for candidate in &candidates {
+        let local = cwd.join(candidate);
+        if local.exists() && local.is_file() {
+            return Some(local);
+        }
+    }
+
+    for candidate in &candidates {
+        if let Ok(path) = which(candidate) {
             return Some(path);
         }
     }
