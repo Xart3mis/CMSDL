@@ -1,27 +1,23 @@
 use std::io;
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
+use tokio::process::{Child, Command};
+use tokio::runtime::Handle;
+use futures::executor;
 
 pub struct ManagedProcess {
     pub child: Child,
 }
 
 impl ManagedProcess {
-    pub fn start(cmd: PathBuf, args: &[&str]) -> io::Result<Self> {
+    pub fn start(cmd: PathBuf) -> io::Result<Self> {
         let mut command = Command::new(cmd);
-        command.args(args);
-
-        let nullout = Stdio::null();
-        let nullerr = Stdio::null();
-
-        command.stdout(nullout).stderr(nullerr).stdin(Stdio::null());
 
         let child = command.spawn()?;
         Ok(Self { child })
     }
 
-    pub fn kill(&mut self) -> io::Result<()> {
-        self.child.kill()
+    pub async fn kill(&mut self) {
+        self.child.kill().await.unwrap();
     }
 
     pub fn is_running(&mut self) -> bool {
@@ -36,7 +32,10 @@ impl ManagedProcess {
 impl Drop for ManagedProcess {
     fn drop(&mut self) {
         if self.is_running() {
-            let _ = self.child.kill();
+            let handle = Handle::current();
+            let _ = handle.enter();
+
+            executor::block_on(self.child.kill()).unwrap();
         }
     }
 }

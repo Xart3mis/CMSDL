@@ -1,11 +1,14 @@
 mod fetcher;
 mod process;
-use std::{path::PathBuf, process::exit};
+mod scraper;
+
+use std::{path::PathBuf, process::exit, time};
 
 use fetcher::{fetch_geckodriver, find_geckodriver};
 use process::ManagedProcess;
 
-fn main() {
+#[tokio::main]
+async fn main() {
     let driver: PathBuf;
     if let Some(driver_) = find_geckodriver() {
         driver = driver_;
@@ -16,14 +19,20 @@ fn main() {
         exit(1);
     }
 
-    let mut proc = ManagedProcess::start(driver, &["--headless"]).unwrap();
+    let mut proc = ManagedProcess::start(driver).unwrap();
     println!("Process started (PID: {:?})", proc.child.id());
 
-    //do something...
-    std::thread::sleep(std::time::Duration::from_secs(5));
+    let c = scraper::Scraper::new(scraper::Credentials {
+        username: "yassin.diab".to_string(),
+        password: "11223344Yd".to_string(),
+    }).await.unwrap();
+
+    tokio::time::sleep(time::Duration::from_secs(30)).await;
 
     if proc.is_running() {
         println!("Killing Process");
-        proc.kill().unwrap();
+
+        c.close().await.unwrap();
+        proc.kill().await;
     }
 }
