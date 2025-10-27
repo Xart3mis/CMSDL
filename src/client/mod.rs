@@ -1,33 +1,32 @@
 use anyhow::{Ok, Result, anyhow};
-use std::sync::Arc;
-use url::Url;
+use std::rc::Rc;
 
 use base64::prelude::{BASE64_STANDARD, Engine};
 use ntlmclient::OsVersion;
 
-pub struct AuthenticatedClient {
-    client: Arc<reqwest::Client>,
+const HOME: &str = "https://cms.giu-uni.de/apps/student/HomePageStn.aspx";
 
-    base: url::Url,
+pub struct AuthenticatedClient {
+    client: Rc<reqwest::Client>,
 }
 
 impl AuthenticatedClient {
     pub fn new() -> Result<AuthenticatedClient> {
-        let base = Url::parse("https://cms.giu-uni.de/")?;
-
-        let client = Arc::new(
-            reqwest::Client::builder()
-                .user_agent("CMSDL_Browserless.rs")
-                .cookie_store(true)
-                // .redirect(reqwest::redirect::Policy::none()) // Don't auto-follow redirects
-                .build()?,
-        );
-
-        Ok(AuthenticatedClient { client, base })
+        Ok(AuthenticatedClient {
+            client: Rc::new(
+                reqwest::Client::builder()
+                    .cookie_store(true)
+                    .build()?,
+            ),
+        })
     }
 
     pub async fn authenticate(&self, username: &str, password: &str) -> Result<()> {
-        let initial_resp = self.client.get("https://cms.giu-uni.de/apps/student/HomePageStn.aspx").send().await?;
+        let initial_resp = self
+            .client
+            .get(HOME)
+            .send()
+            .await?;
         let auth_url = initial_resp.url().clone();
 
         let nego_flags = ntlmclient::Flags::from_bits(0x02898205)
@@ -46,8 +45,6 @@ impl AuthenticatedClient {
 
         let nego_msg_bytes = nego_msg.to_bytes()?;
         let nego_b64 = BASE64_STANDARD.encode(&nego_msg_bytes);
-
-        dbg!(format!("NTLM {}", nego_b64));
 
         let resp = self
             .client
@@ -105,19 +102,12 @@ impl AuthenticatedClient {
         let auth_msg_bytes = auth_msg.to_bytes()?;
         let auth_b64 = BASE64_STANDARD.encode(&auth_msg_bytes);
 
-        dbg!(format!("NTLM {}", auth_b64));
-
         let auth_response = self
             .client
             .get(auth_url.clone())
             .header("Authorization", format!("NTLM {}", auth_b64))
             .send()
             .await?;
-        // .error_for_status()
-        // .expect("error response to authentication message");
-
-        dbg!(auth_response.status());
-        dbg!(auth_response.headers());
 
         auth_response.error_for_status()?;
 
