@@ -9,7 +9,7 @@ pub struct CourseBuilder {
     season_id: i32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, PartialOrd)]
 pub struct Course {
     pub title: String,
     pub season: String,
@@ -22,10 +22,6 @@ pub struct Course {
 }
 
 pub type Courses = Vec<Course>;
-
-pub trait CoursesExt {}
-
-impl CoursesExt for Courses {}
 
 pub struct CoursesParser;
 

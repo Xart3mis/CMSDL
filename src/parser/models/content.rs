@@ -1,6 +1,4 @@
-use std::collections::HashMap;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ContentType {
     Exam,
     ExamSolution,
@@ -31,12 +29,12 @@ impl From<&str> for ContentType {
             "assignment solution" => Self::AssignmentSolution,
             "lab manual" => Self::LabManual,
             "project" => Self::Project,
-            "other" | _ => Self::Other,
+            _ => Self::Other,
         }
     }
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Content {
     title: String,
     content_type: ContentType,
@@ -78,59 +76,6 @@ impl ContentBuilder {
             content_type: self.content_type,
             description: self.description,
             download_link: self.download_link,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct CourseContentBuilder {
-    total_weeks: Option<i32>,
-    content_count: Option<i32>,
-
-    content: Vec<Content>,
-    grouped_content: Box<HashMap<ContentType, Content>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct CourseContent {
-    total_weeks: i32,
-    content_count: i32,
-
-    content: Vec<Content>,
-    grouped_content: Box<HashMap<ContentType, Content>>,
-}
-
-impl CourseContentBuilder {
-    pub fn new() -> Self {
-        CourseContentBuilder {
-            total_weeks: None,
-            content_count: None,
-            content: Vec::new(),
-            grouped_content: Box::new(HashMap::new()),
-        }
-    }
-
-    pub fn total_weeks(&mut self, total_weeks: i32) -> &mut Self {
-        self.total_weeks = Some(total_weeks);
-        self
-    }
-
-    pub fn content_count(&mut self, content_count: i32) -> &mut Self {
-        self.content_count = Some(content_count);
-        self
-    }
-
-    pub fn add_content(&mut self, content: Content) {
-        self.content.push(content.clone());
-        self.grouped_content.insert(content.content_type, content);
-    }
-
-    pub fn build(&self) -> CourseContent {
-        CourseContent {
-            total_weeks: self.total_weeks.unwrap_or_default(),
-            content_count: self.content_count.unwrap_or_default(),
-            content: self.content.clone(),
-            grouped_content: self.grouped_content.to_owned(),
         }
     }
 }

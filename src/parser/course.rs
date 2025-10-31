@@ -1,9 +1,7 @@
 use super::{
     AuthenticatedClient, CourseBuilder, Courses, CoursesParser, GetHtmlExt, Parsable, Regex,
-    Selector,
+    Selector, fix_html,
 };
-
-use html_escape::decode_html_entities;
 
 impl Parsable<Courses> for CoursesParser
 where
@@ -40,11 +38,7 @@ where
                 );
 
                 if let Some(title) = title
-                    && let Some(caps) = re.captures(
-                        decode_html_entities(&title.inner_html())
-                            .replace("\u{a0}", "")
-                            .trim(),
-                    )
+                    && let Some(caps) = re.captures(&fix_html(title.inner_html()))
                 {
                     course_builder.code(caps["code"].trim().to_string());
                     course_builder.title(caps["name"].trim().to_string());

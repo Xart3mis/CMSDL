@@ -2,7 +2,7 @@ mod client;
 use client::AuthenticatedClient;
 
 mod parser;
-use parser::{Courses, CoursesExt, CoursesParser, Parsable, Content};
+use parser::{CoursesParser, Parsable};
 
 fn main() {
     let mut client = AuthenticatedClient::new();
@@ -16,6 +16,10 @@ fn main() {
     dbg!(&courses);
 
     for course in courses {
-        course.parse(&mut client).expect("Failed to fetch & parse courses");
+        let content = course
+            .parse(&mut client)
+            .expect("Failed to fetch & parse courses");
+
+        dbg!(content);
     }
 }
