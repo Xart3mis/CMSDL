@@ -1,32 +1,21 @@
-use curl::easy::{Auth, Easy};
-use std::str;
+mod client;
+use client::AuthenticatedClient;
+
+mod parser;
+use parser::{Courses, CoursesExt, CoursesParser, Parsable, Content};
 
 fn main() {
-    let mut easy = Easy::new();
+    let mut client = AuthenticatedClient::new();
 
-    easy.url("https://cms.giu-uni.de/apps/student/HomePageStn.aspx").expect("easy.url failed");
+    client.authenticate("yassin.diab", "11223344Yd").unwrap();
 
-    easy.http_auth(Auth::new().ntlm(true))
-        .expect("failed to set up auth");
+    let courses = CoursesParser::new()
+        .parse(&mut client)
+        .expect("Failed to fetch & parse courses");
 
-    easy.username("yassin.diab").unwrap();
-    easy.password("11223344Yd").unwrap();
+    dbg!(&courses);
 
-    let mut response_data = Vec::new();
-    {
-        let mut transfer = easy.transfer();
-        transfer
-            .write_function(|data| {
-                response_data.extend_from_slice(data);
-                Ok(data.len())
-            })
-            .unwrap();
-        transfer.perform().unwrap();
+    for course in courses {
+        course.parse(&mut client).expect("Failed to fetch & parse courses");
     }
-
-    let body = String::from_utf8(response_data).unwrap();
-
-    println!("{}", body.len());
-    println!("{}", &body);
 }
-
