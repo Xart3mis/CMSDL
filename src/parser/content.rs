@@ -1,5 +1,6 @@
 use super::{
-    AuthenticatedClient, Content, ContentBuilder, Course, GetHtmlExt, Parsable, Selector, fix_html,
+    AuthenticatedClient, Content, ContentBuilder, Course, GetHtmlExt, Parsable, Regex, Selector,
+    fix_html,
 };
 
 impl Parsable<Vec<Content>> for Course
@@ -22,6 +23,8 @@ where
         let link_selector = Selector::parse(".card-body a.btn.btn-primary.contentbtn#download")
             .expect("Failed to parse selector");
 
+        let re = Regex::new(r"^\d+\s*-\s*(.+)$").unwrap();
+
         let mut content_list = Vec::new();
 
         for content_fr in document.select(&content_selector) {
@@ -30,14 +33,18 @@ where
                 .nth(0)
                 .expect("Failed to select full content title");
 
+            let title = fix_html(
+                full_title
+                    .select(&title_selector)
+                    .nth(0)
+                    .expect("Failed to fetch title")
+                    .inner_html(),
+            );
+
+            let title = re.captures(&title).unwrap().get(1).unwrap();
+
             let mut builder = ContentBuilder::new(
-                fix_html(
-                    full_title
-                        .select(&title_selector)
-                        .nth(0)
-                        .expect("Failed to fetch title")
-                        .inner_html(),
-                ),
+                title.as_str().to_string(),
                 full_title
                     .text()
                     .nth(1)

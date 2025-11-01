@@ -7,5 +7,6 @@ edition = "2024"
 anyhow = "1.0.100"
 curl = { version = "0.4.49", features = ["ntlm"] }
 html-escape = "0.2.13"
+indicatif = "0.18.2"
 regex = "1.12.2"
 scraper = "0.24.0"

@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Debug, Clone, Copy, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ContentType {
     Exam,
@@ -13,8 +15,27 @@ pub enum ContentType {
     LabManual,
     Project,
 
+    VoD,
+
     #[default]
     Other,
+}
+impl fmt::Display for ContentType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ContentType::Exam => write!(f, "Exam"),
+            ContentType::ExamSolution => write!(f, "Exam Solution"),
+            ContentType::LectureSlides => write!(f, "Lecture Slides"),
+            ContentType::TutorialNotes => write!(f, "Tutorial Notes"),
+            ContentType::SupplementaryNotes => write!(f, "Supplementary Notes"),
+            ContentType::Assignment => write!(f, "Assignment"),
+            ContentType::AssignmentSolution => write!(f, "Assignment Solution"),
+            ContentType::LabManual => write!(f, "Lab Manual"),
+            ContentType::Project => write!(f, "Project"),
+            ContentType::VoD => write!(f, "VoD"),
+            ContentType::Other => write!(f, "Other"),
+        }
+    }
 }
 
 impl From<&str> for ContentType {
@@ -29,6 +50,7 @@ impl From<&str> for ContentType {
             "assignment solution" => Self::AssignmentSolution,
             "lab manual" => Self::LabManual,
             "project" => Self::Project,
+            "vod" => Self::VoD,
             _ => Self::Other,
         }
     }
@@ -36,11 +58,11 @@ impl From<&str> for ContentType {
 
 #[derive(Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Content {
-    title: String,
-    content_type: ContentType,
+    pub title: String,
+    pub content_type: ContentType,
 
-    description: Option<String>,
-    download_link: Option<String>,
+    pub description: Option<String>,
+    pub download_link: Option<String>,
 }
 
 pub struct ContentBuilder {

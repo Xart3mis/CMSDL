@@ -7,18 +7,57 @@ pub struct AuthenticatedClient {
     handle: Box<Easy>,
 }
 
-impl AuthenticatedClient {
+pub struct Credentials {
+    pub username: String,
+    pub password: String,
+}
+
+impl Credentials {
+    pub fn new(username: &str, password: &str) -> Self {
+        Self {
+            username: username.to_string(),
+            password: password.to_string(),
+        }
+    }
+}
+
+pub struct AuthenticatedClientBuilder<'a> {
+    credentials: Option<&'a Credentials>,
+}
+
+impl<'a> AuthenticatedClientBuilder<'a> {
+    pub fn new() -> Self {
+        Self { credentials: None }
+    }
+
+    pub fn authenticate(&mut self, credentials: &'a Credentials) -> &mut Self {
+        self.credentials = Some(credentials);
+        self
+    }
+
+    pub fn build(self) -> Result<AuthenticatedClient> {
+        let mut client = AuthenticatedClient::new();
+
+        if let Some(credentials) = self.credentials {
+            client.authenticate(credentials)?;
+        }
+
+        Ok(client)
+    }
+}
+
+impl<'a> AuthenticatedClient {
     pub fn new() -> AuthenticatedClient {
         AuthenticatedClient {
             handle: Box::new(Easy::new()),
         }
     }
 
-    pub fn authenticate(&mut self, username: &str, password: &str) -> Result<()> {
+    pub fn authenticate(&mut self, credentials: &'a Credentials) -> Result<()> {
         self.handle.http_auth(Auth::new().ntlm(true))?;
 
-        self.handle.username(username)?;
-        self.handle.password(password)?;
+        self.handle.username(&credentials.username)?;
+        self.handle.password(&credentials.password)?;
 
         Ok(())
     }
