@@ -67,12 +67,21 @@ impl DownloadableItem {
 
 impl<'a> Download<'a> for CourseContent {
     fn download(&self, max_concurrent: usize, base: &str, credentials: &'a Credentials) {
+        let sp = ProgressBar::new_spinner();
+
+        sp.set_style(ProgressStyle::with_template("{spinner:.cyan.bold} {msg:.bold}").unwrap());
+        sp.enable_steady_tick(Duration::from_millis(15));
+
+        sp.set_message("Starting Downloads...");
+
+        std::thread::sleep(Duration::from_secs(2));
+
         let mp = MultiProgress::new();
-        let style = ProgressStyle::with_template(
-            "{prefix:.bold} {bar:40.cyan/blue} {bytes}/{total_bytes} ({eta})",
-        )
-        .unwrap()
-        .progress_chars("=> ");
+
+        let style =
+            ProgressStyle::with_template("{prefix:.dim} [{bar:30.magenta/black}] {percent:>3}%")
+                .unwrap()
+                .progress_chars("█░ ");
 
         let mut multi = Multi::new();
         multi.pipelining(true, true).unwrap();
@@ -89,9 +98,16 @@ impl<'a> Download<'a> for CourseContent {
             })
             .collect();
 
+        let max_prefix_len = queue
+            .iter()
+            .map(|item| format!("{} -| {}", item.course.title, item.title).len() + 1)
+            .max()
+            .unwrap_or(0);
+
+        sp.finish();
+
         let mut handles: HashMap<usize, Easy2Handle<DownloadHandler>> = HashMap::new();
         let mut next_token = 0;
-
         // helper to start next queued download
         let start_next = |multi: &mut Multi,
                           queue: &mut VecDeque<DownloadableItem>,
@@ -109,7 +125,12 @@ impl<'a> Download<'a> for CourseContent {
                     let file = File::create(&filename).unwrap();
 
                     let pb = mp.add(ProgressBar::new(0));
-                    pb.set_prefix(format!("{} -|{}", item.course.title, item.title));
+                    pb.set_prefix(format!(
+                        "[{:04}] {:<width$}",
+                        token,
+                        format!("{} -| {}", item.course.title, item.title),
+                        width = max_prefix_len
+                    ));
                     pb.set_style(style.clone());
 
                     let mut easy = Easy2::new(DownloadHandler {
