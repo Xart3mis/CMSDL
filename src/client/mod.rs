@@ -46,14 +46,14 @@ impl<'a> AuthenticatedClientBuilder<'a> {
     }
 }
 
-impl<'a> AuthenticatedClient {
+impl AuthenticatedClient {
     pub fn new() -> AuthenticatedClient {
         AuthenticatedClient {
             handle: Box::new(Easy::new()),
         }
     }
 
-    pub fn authenticate(&mut self, credentials: &'a Credentials) -> Result<()> {
+    pub fn authenticate(&mut self, credentials: &Credentials) -> Result<()> {
         self.handle.http_auth(Auth::new().ntlm(true))?;
 
         self.handle.username(&credentials.username)?;
