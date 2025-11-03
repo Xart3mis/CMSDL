@@ -193,7 +193,7 @@ impl<'a> Download<'a> for CourseContent {
         let scroll_interval = Duration::from_millis(150);
 
         while !queue.is_empty() || !handles.is_empty() {
-            multi.perform().unwrap();
+            multi.perform()?;
 
             if last_scroll.elapsed() >= scroll_interval {
                 for (tk, h) in handles.iter_mut() {
@@ -241,16 +241,16 @@ impl<'a> Download<'a> for CourseContent {
 
             for token in finished_tokens {
                 handles.remove(&token);
-                start_next(&mut multi, &mut queue, &mut handles, &mut next_token);
+                start_next(&mut multi, &mut queue, &mut handles, &mut next_token)?;
             }
 
             if !handles.is_empty() {
-                let timeout = multi.get_timeout().unwrap();
+                let timeout = multi.get_timeout()?;
 
                 match timeout {
                     Some(duration) if duration == Duration::ZERO => continue,
-                    Some(duration) => multi.wait(&mut [], duration).unwrap(),
-                    None => multi.wait(&mut [], Duration::from_millis(100)).unwrap(),
+                    Some(duration) => multi.wait(&mut [], duration)?,
+                    None => multi.wait(&mut [], Duration::from_millis(100))?,
                 };
             }
         }
