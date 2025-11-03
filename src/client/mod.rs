@@ -4,7 +4,7 @@ use curl::easy::{Auth, Easy};
 use crate::parser::models::course::{Course, CoursesParser};
 
 pub struct AuthenticatedClient {
-    handle: Box<Easy>,
+    handle: Easy,
 }
 
 pub struct Credentials {
@@ -49,7 +49,7 @@ impl<'a> AuthenticatedClientBuilder<'a> {
 impl AuthenticatedClient {
     pub fn new() -> AuthenticatedClient {
         AuthenticatedClient {
-            handle: Box::new(Easy::new()),
+            handle: Easy::new(),
         }
     }
 
