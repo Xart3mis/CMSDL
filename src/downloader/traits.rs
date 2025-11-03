@@ -2,6 +2,7 @@ use super::{Content, ContentType, Course, Credentials, File, HashMap, ProgressBa
 
 pub struct DownloadHandler {
     pub file: File,
+    pub prefix: String,
     pub pb: ProgressBar,
 }
 

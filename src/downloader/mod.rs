@@ -5,7 +5,8 @@ use std::collections::{HashMap, VecDeque};
 use std::fs::File;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use std::{sync::Arc, thread};
 
 mod traits;
 use traits::{CourseContent, DownloadHandler, DownloadableItem};
@@ -74,9 +75,9 @@ impl<'a> Download<'a> for CourseContent {
 
         sp.set_message("Starting Downloads...");
 
-        std::thread::sleep(Duration::from_secs(2));
+        thread::sleep(Duration::from_secs(2));
 
-        let mp = MultiProgress::new();
+        let mp = Arc::new(MultiProgress::new());
 
         let style =
             ProgressStyle::with_template("{prefix:.dim} [{bar:30.magenta/black}] {percent:>3}%")
@@ -98,12 +99,6 @@ impl<'a> Download<'a> for CourseContent {
             })
             .collect();
 
-        let max_prefix_len = queue
-            .iter()
-            .map(|item| format!("{} -| {}", item.course.title, item.title).len() + 1)
-            .max()
-            .unwrap_or(0);
-
         sp.finish();
 
         let mut handles: HashMap<usize, Easy2Handle<DownloadHandler>> = HashMap::new();
@@ -116,7 +111,7 @@ impl<'a> Download<'a> for CourseContent {
          -> bool {
             if let Some(item) = queue.pop_front() {
                 if let Some(download_link) = &item.download_link
-                    && let Some(filename) = item.path("Download")
+                    && let Some(filename) = item.path(base)
                 {
                     if let Some(parent) = filename.parent() {
                         std::fs::create_dir_all(parent).unwrap();
@@ -124,17 +119,15 @@ impl<'a> Download<'a> for CourseContent {
 
                     let file = File::create(&filename).unwrap();
 
+                    let pre = format!(" {} -| {} ", item.course.title, item.title);
+
                     let pb = mp.add(ProgressBar::new(0));
-                    pb.set_prefix(format!(
-                        "[{:04}] {:<width$}",
-                        token,
-                        format!("{} -| {}", item.course.title, item.title),
-                        width = max_prefix_len
-                    ));
+                    pb.set_prefix(format_fixed_prefix(*token, pre.trim(), 60));
                     pb.set_style(style.clone());
 
                     let mut easy = Easy2::new(DownloadHandler {
                         file,
+                        prefix: pre,
                         pb: pb.clone(),
                     });
 
@@ -180,8 +173,21 @@ impl<'a> Download<'a> for CourseContent {
             }
         }
 
+        let mut last_scroll = Instant::now();
+        let scroll_interval = Duration::from_millis(150);
+
         while !queue.is_empty() || !handles.is_empty() {
             multi.perform().unwrap();
+
+            if last_scroll.elapsed() >= scroll_interval {
+                for (tk, h) in handles.iter() {
+                    let prefix = &h.get_ref().prefix;
+                    let scrolled = scroll_prefix(*tk, prefix, 60);
+                    h.get_ref().pb.set_prefix(scrolled);
+                }
+
+                last_scroll = Instant::now();
+            }
 
             let mut finished_tokens = Vec::new();
             multi.messages(|msg| {
@@ -231,4 +237,30 @@ impl<'a> Download<'a> for CourseContent {
             }
         }
     }
+}
+
+fn scroll_prefix(token: usize, text: &str, width: usize) -> String {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static OFFSET: AtomicUsize = AtomicUsize::new(0);
+    let chars: Vec<char> = text.chars().collect();
+    let len = chars.len();
+
+    let offset = OFFSET.fetch_add(1, Ordering::Relaxed) % (len.max(1));
+    let mut visible: String = chars.iter().cycle().skip(offset).take(width).collect();
+
+    // pad if shorter than width
+    if visible.chars().count() < width {
+        visible.push_str(&" ".repeat(width - visible.chars().count()));
+    }
+
+    format!("[{:04}] {}", token, visible)
+}
+
+fn format_fixed_prefix(token: usize, prefix: &str, width: usize) -> String {
+    let mut out: String = prefix.chars().take(width).collect();
+    if out.chars().count() < width {
+        out.push_str(&" ".repeat(width - out.chars().count()));
+    }
+
+    format!("[{:04}] {}", token, out)
 }
