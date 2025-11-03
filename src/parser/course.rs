@@ -16,7 +16,7 @@ where
         )
         .expect("Failed to parse Selector");
 
-        let re = Regex::new(r"\(\|(?P<code>[A-Z0-9]+)\|\)\s+(?P<name>[^()]+)").unwrap();
+        let re = Regex::new(r"(?i)\(\|(?P<code>[A-Za-z0-9]+)\|\)\s+(?P<name>[^()]+)").unwrap();
 
         let mut courses_list = Vec::new();
         for courses in document.select(&courses_selector).skip(1) {
@@ -40,7 +40,7 @@ where
                 if let Some(title) = title
                     && let Some(caps) = re.captures(&fix_html(title.inner_html()))
                 {
-                    course_builder.code(caps["code"].trim().to_string());
+                    course_builder.code(caps["code"].trim().to_string().to_uppercase());
                     course_builder.title(caps["name"].trim().to_string());
                 }
 

@@ -9,7 +9,7 @@ pub struct CourseBuilder {
     season_id: i32,
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, PartialOrd, Eq)]
+#[derive(Debug, Clone, PartialEq, PartialOrd, Eq, Hash)]
 pub struct Course {
     pub title: String,
     pub season: String,

@@ -15,6 +15,8 @@ use dialoguer::{Input, Password, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::{collections::HashMap, time::Duration};
 
+const MAX_CONCURRENT_DOWNLOADS: usize = 4;
+
 /// CLI app to download & sync content from GIU CMS.
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -54,7 +56,6 @@ fn main() {
 
         password = Password::with_theme(&ColorfulTheme::default())
             .with_prompt("Password")
-            .with_confirmation("Repeat Password", "Error: the passwords don't match.")
             .validate_with(|input: &String| -> Result<(), &str> {
                 if input.chars().count() >= 8 {
                     Ok(())
@@ -133,7 +134,7 @@ fn main() {
 
     eprintln!("\x1b[1mGot {} Total Files.\x1b[0m", total_count);
 
-    course_content.download(3, &save_to, &creds);
+    course_content.download(MAX_CONCURRENT_DOWNLOADS, &save_to, &creds).unwrap();
 
     eprintln!("\x1b[1mFinished.\x1b[0m");
 }

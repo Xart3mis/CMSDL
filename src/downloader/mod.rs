@@ -1,12 +1,21 @@
-use curl::easy::{Auth, Easy2, Handler, WriteError};
-use curl::multi::{Easy2Handle, Multi};
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-use std::collections::{HashMap, VecDeque};
-use std::fs::File;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
-use std::{sync::Arc, thread};
+
+pub use anyhow::Result;
+
+use curl::{
+    easy::{Auth, Easy2, Handler, WriteError},
+    multi::{Easy2Handle, Multi},
+};
+
+use std::{
+    collections::{HashMap, VecDeque},
+    fs::File,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
+    thread,
+    time::{Duration, Instant},
+};
 
 mod traits;
 use traits::{CourseContent, DownloadHandler, DownloadableItem};
@@ -54,7 +63,7 @@ impl DownloadableItem {
                         self.course.title,
                         self.content_type,
                         self.title,
-                        download_link.trim().rsplit_once(".").unwrap().1
+                        download_link.trim().rsplit_once(".")?.1
                     )
                     .trim(),
                 )
@@ -67,10 +76,17 @@ impl DownloadableItem {
 }
 
 impl<'a> Download<'a> for CourseContent {
-    fn download(&self, max_concurrent: usize, base: &str, credentials: &'a Credentials) {
+    fn download(
+        &self,
+        max_concurrent: usize,
+        base: &str,
+        credentials: &'a Credentials,
+    ) -> Result<()> {
         let sp = ProgressBar::new_spinner();
 
-        sp.set_style(ProgressStyle::with_template("{spinner:.cyan.bold} {msg:.bold}").unwrap());
+        sp.set_style(ProgressStyle::with_template(
+            "{spinner:.cyan.bold} {msg:.bold}",
+        )?);
         sp.enable_steady_tick(Duration::from_millis(15));
 
         sp.set_message("Starting Downloads...");
@@ -80,12 +96,11 @@ impl<'a> Download<'a> for CourseContent {
         let mp = Arc::new(MultiProgress::new());
 
         let style =
-            ProgressStyle::with_template("{prefix:.dim} [{bar:30.magenta/black}] {percent:>3}%")
-                .unwrap()
+            ProgressStyle::with_template("{prefix:.dim} [{bar:30.magenta/black}] {percent:>3}%")?
                 .progress_chars("█░ ");
 
         let mut multi = Multi::new();
-        multi.pipelining(true, true).unwrap();
+        multi.pipelining(true, true)?;
 
         let mut queue: VecDeque<DownloadableItem> = self
             .iter()
@@ -108,16 +123,16 @@ impl<'a> Download<'a> for CourseContent {
                           queue: &mut VecDeque<DownloadableItem>,
                           handles: &mut HashMap<usize, Easy2Handle<DownloadHandler>>,
                           token: &mut usize|
-         -> bool {
+         -> Result<bool> {
             if let Some(item) = queue.pop_front() {
                 if let Some(download_link) = &item.download_link
                     && let Some(filename) = item.path(base)
                 {
                     if let Some(parent) = filename.parent() {
-                        std::fs::create_dir_all(parent).unwrap();
+                        std::fs::create_dir_all(parent)?;
                     }
 
-                    let file = File::create(&filename).unwrap();
+                    let file = File::create(&filename)?;
 
                     let pre = format!(" {} -| {} ", item.course.title, item.title);
 
@@ -128,47 +143,48 @@ impl<'a> Download<'a> for CourseContent {
                     let mut easy = Easy2::new(DownloadHandler {
                         file,
                         prefix: pre,
+                        scroll_offset: 0,
                         pb: pb.clone(),
                     });
 
-                    easy.http_auth(Auth::new().ntlm(true)).unwrap();
-                    easy.username(&credentials.username).unwrap();
-                    easy.password(&credentials.password).unwrap();
+                    easy.http_auth(Auth::new().ntlm(true))?;
+                    easy.username(&credentials.username)?;
+                    easy.password(&credentials.password)?;
 
                     let url = format!("https://cms.giu-uni.de{}", download_link);
 
-                    easy.url(&url).unwrap();
-                    easy.follow_location(true).unwrap();
-                    easy.progress(true).unwrap();
-                    easy.tcp_keepalive(true).unwrap();
+                    easy.url(&url)?;
+                    easy.follow_location(true)?;
+                    easy.progress(true)?;
+                    easy.tcp_keepalive(true)?;
 
-                    let mut handle = multi.add2(easy).unwrap();
-                    handle.set_token(*token).unwrap();
+                    let mut handle = multi.add2(easy)?;
+                    handle.set_token(*token)?;
                     handles.insert(*token, handle);
                     *token += 1;
 
-                    return true;
+                    return Ok(true);
                 } else if let Some(description) = item.description {
                     let filename = format!("{}/{}/{}.txt", base, item.course.title, item.title);
 
                     if let Some(parent) = std::path::Path::new(&filename).parent() {
-                        std::fs::create_dir_all(parent).unwrap();
+                        std::fs::create_dir_all(parent)?;
                     }
 
-                    let mut file = File::create(&filename).unwrap();
+                    let mut file = File::create(&filename)?;
                     file.write_all(description.as_bytes())
                         .expect("Failed to write description to file");
 
-                    return false;
+                    return Ok(false);
                 }
             }
 
-            false
+            Ok(false)
         };
 
         // fill up initial concurrent slots
         for _ in 0..max_concurrent.min(queue.len()) {
-            if !start_next(&mut multi, &mut queue, &mut handles, &mut next_token) {
+            if !start_next(&mut multi, &mut queue, &mut handles, &mut next_token)? {
                 continue;
             }
         }
@@ -180,10 +196,12 @@ impl<'a> Download<'a> for CourseContent {
             multi.perform().unwrap();
 
             if last_scroll.elapsed() >= scroll_interval {
-                for (tk, h) in handles.iter() {
-                    let prefix = &h.get_ref().prefix;
-                    let scrolled = scroll_prefix(*tk, prefix, 60);
-                    h.get_ref().pb.set_prefix(scrolled);
+                for (tk, h) in handles.iter_mut() {
+                    let referance = h.get_mut();
+                    let offset = &mut referance.scroll_offset;
+                    let scrolled = scroll_prefix(*tk, &referance.prefix, 60, offset);
+                    *offset += 1;
+                    referance.pb.set_prefix(scrolled);
                 }
 
                 last_scroll = Instant::now();
@@ -236,22 +254,33 @@ impl<'a> Download<'a> for CourseContent {
                 };
             }
         }
+
+        Ok(())
     }
 }
 
-fn scroll_prefix(token: usize, text: &str, width: usize) -> String {
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    static OFFSET: AtomicUsize = AtomicUsize::new(0);
+fn scroll_prefix(token: usize, text: &str, width: usize, offset: &mut usize) -> String {
     let chars: Vec<char> = text.chars().collect();
     let len = chars.len();
 
-    let offset = OFFSET.fetch_add(1, Ordering::Relaxed) % (len.max(1));
-    let mut visible: String = chars.iter().cycle().skip(offset).take(width).collect();
-
-    // pad if shorter than width
-    if visible.chars().count() < width {
-        visible.push_str(&" ".repeat(width - visible.chars().count()));
+    if len == 0 {
+        return format!("[{:04}] {}", token, " ".repeat(width));
     }
+
+    let current_offset = *offset % len;
+    let visible: String = chars
+        .iter()
+        .cycle()
+        .skip(current_offset)
+        .take(width)
+        .collect();
+
+    // Pad if shorter than width
+    let visible = if visible.chars().count() < width {
+        format!("{}{}", visible, " ".repeat(width - visible.chars().count()))
+    } else {
+        visible
+    };
 
     format!("[{:04}] {}", token, visible)
 }

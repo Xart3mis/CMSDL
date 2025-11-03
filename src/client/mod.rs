@@ -3,6 +3,10 @@ use curl::easy::{Auth, Easy};
 
 use crate::parser::models::course::{Course, CoursesParser};
 
+const CMS_BASE_URL: &str = "https://cms.giu-uni.de/";
+const CMS_HOME: &str = "apps/student/HomePageStn.aspx";
+const CMS_COURSE_TEMPLATE: &str = "apps/student/CourseViewStn.aspx";
+
 pub struct AuthenticatedClient {
     handle: Easy,
 }
@@ -87,9 +91,9 @@ pub trait GetHtmlExt {
 
 impl GetHtmlExt for CoursesParser {
     fn get_html(&self, client: &mut AuthenticatedClient) -> Result<scraper::Html> {
-        Ok(scraper::Html::parse_document(&client.get(
-            "https://cms.giu-uni.de/apps/student/HomePageStn.aspx",
-        )?))
+        Ok(scraper::Html::parse_document(
+            &client.get(format!("{}{}", CMS_BASE_URL, CMS_HOME,).as_str())?,
+        ))
     }
 }
 
@@ -98,8 +102,8 @@ impl GetHtmlExt for Course {
         Ok(scraper::Html::parse_document(
             &client.get(
                 format!(
-                    "https://cms.giu-uni.de/apps/student/CourseViewStn.aspx?id={}&sid={}",
-                    self.course_id, self.season_id
+                    "{}{}?id={}&sid={}",
+                    CMS_BASE_URL, CMS_COURSE_TEMPLATE, self.course_id, self.season_id,
                 )
                 .trim(),
             )?,
