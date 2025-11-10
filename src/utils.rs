@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::parser::Course;
+use super::parser::Course;
 
 pub fn is_valid_path(path_str: &str) -> bool {
     if path_str.contains('\0') {

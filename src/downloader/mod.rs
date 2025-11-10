@@ -11,7 +11,7 @@ use std::{
     collections::{HashMap, VecDeque},
     fs::File,
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
     thread,
     time::{Duration, Instant},
@@ -20,8 +20,11 @@ use std::{
 mod traits;
 use traits::{CourseContent, DownloadHandler, DownloadableItem};
 
-use crate::client::Credentials;
-use crate::parser::{Content, ContentType, Course};
+use super::{
+    DEFAULT_MAX_CONCURRENCY,
+    config::{Credentials, DownloadOptions},
+    parser::{Content, ContentType, Course},
+};
 
 pub use traits::Download;
 
@@ -53,22 +56,19 @@ impl DownloadableItem {
         }
     }
 
-    fn path(&self, base: &str) -> Option<PathBuf> {
+    fn path(&self, base: PathBuf) -> Option<PathBuf> {
         if let Some(download_link) = &self.download_link {
-            return Some(
-                Path::new(
-                    format!(
-                        "{}/{}/{}/{}.{}",
-                        base,
-                        self.course.title,
-                        self.content_type,
-                        self.title,
-                        download_link.trim().rsplit_once(".")?.1
-                    )
-                    .trim(),
-                )
-                .to_owned(),
-            );
+            let mut result = base.clone();
+
+            result.push(&self.course.title);
+            result.push(self.content_type.to_string());
+            result.push(format!(
+                "{}.{}",
+                &self.title,
+                download_link.trim().rsplit_once(".")?.1
+            ));
+
+            return Some(result);
         }
 
         None
@@ -76,12 +76,7 @@ impl DownloadableItem {
 }
 
 impl<'a> Download<'a> for CourseContent {
-    fn download(
-        &self,
-        max_concurrent: usize,
-        base: &str,
-        credentials: &'a Credentials,
-    ) -> Result<()> {
+    fn download(&self, options: DownloadOptions, credentials: &'a Credentials) -> Result<()> {
         let sp = ProgressBar::new_spinner();
 
         sp.set_style(ProgressStyle::with_template(
@@ -110,7 +105,9 @@ impl<'a> Download<'a> for CourseContent {
                     .map(move |content| DownloadableItem::new(course.clone(), content.clone()))
             })
             .filter(|x| {
-                x.content_type != ContentType::VoD && x.path(base).is_some_and(|y| !y.exists())
+                x.content_type != ContentType::VoD
+                    && x.path(options.save_path.clone())
+                        .is_some_and(|y| !y.exists())
             })
             .collect();
 
@@ -118,7 +115,6 @@ impl<'a> Download<'a> for CourseContent {
 
         let mut handles: HashMap<usize, Easy2Handle<DownloadHandler>> = HashMap::new();
         let mut next_token = 0;
-        // helper to start next queued download
         let start_next = |multi: &mut Multi,
                           queue: &mut VecDeque<DownloadableItem>,
                           handles: &mut HashMap<usize, Easy2Handle<DownloadHandler>>,
@@ -126,7 +122,7 @@ impl<'a> Download<'a> for CourseContent {
          -> Result<bool> {
             if let Some(item) = queue.pop_front() {
                 if let Some(download_link) = &item.download_link
-                    && let Some(filename) = item.path(base)
+                    && let Some(filename) = item.path(options.save_path.clone())
                 {
                     if let Some(parent) = filename.parent() {
                         std::fs::create_dir_all(parent)?;
@@ -165,7 +161,10 @@ impl<'a> Download<'a> for CourseContent {
 
                     return Ok(true);
                 } else if let Some(description) = item.description {
-                    let filename = format!("{}/{}/{}.txt", base, item.course.title, item.title);
+                    let mut filename = options.save_path.clone();
+
+                    filename.push(&item.course.title);
+                    filename.push(format!("{}.txt", &item.title));
 
                     if let Some(parent) = std::path::Path::new(&filename).parent() {
                         std::fs::create_dir_all(parent)?;
@@ -182,8 +181,11 @@ impl<'a> Download<'a> for CourseContent {
             Ok(false)
         };
 
-        // fill up initial concurrent slots
-        for _ in 0..max_concurrent.min(queue.len()) {
+        for _ in 0..options
+            .max_concurrency
+            .unwrap_or(DEFAULT_MAX_CONCURRENCY)
+            .min(queue.len())
+        {
             if !start_next(&mut multi, &mut queue, &mut handles, &mut next_token)? {
                 continue;
             }
@@ -275,7 +277,6 @@ fn scroll_prefix(token: usize, text: &str, width: usize, offset: &mut usize) -> 
         .take(width)
         .collect();
 
-    // Pad if shorter than width
     let visible = if visible.chars().count() < width {
         format!("{}{}", visible, " ".repeat(width - visible.chars().count()))
     } else {

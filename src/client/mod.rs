@@ -1,7 +1,10 @@
 use anyhow::Result;
 use curl::easy::{Auth, Easy};
 
-use crate::parser::models::course::{Course, CoursesParser};
+use super::{
+    config::Credentials,
+    parser::models::course::{Course, CoursesParser},
+};
 
 const CMS_BASE_URL: &str = "https://cms.giu-uni.de/";
 const CMS_HOME: &str = "apps/student/HomePageStn.aspx";
@@ -9,20 +12,6 @@ const CMS_COURSE_TEMPLATE: &str = "apps/student/CourseViewStn.aspx";
 
 pub struct AuthenticatedClient {
     handle: Easy,
-}
-
-pub struct Credentials {
-    pub username: String,
-    pub password: String,
-}
-
-impl Credentials {
-    pub fn new(username: &str, password: &str) -> Self {
-        Self {
-            username: username.to_string(),
-            password: password.to_string(),
-        }
-    }
 }
 
 pub struct AuthenticatedClientBuilder<'a> {
