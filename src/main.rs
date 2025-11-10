@@ -1,5 +1,5 @@
 mod client;
-use client::{AuthenticatedClientBuilder, Credentials};
+use client::AuthenticatedClientBuilder;
 
 mod parser;
 use parser::{Content, Course, CoursesParser, Parsable};
@@ -7,16 +7,19 @@ use parser::{Content, Course, CoursesParser, Parsable};
 mod downloader;
 use downloader::Download;
 
-mod utils;
-use utils::{CourseFilter, is_valid_path};
+pub mod utils;
+use utils::CourseFilter;
+
+pub mod config;
+use config::{Config, Credentials};
 
 use clap::Parser;
-use dialoguer::{Input, MultiSelect, Password, theme::ColorfulTheme};
+use dialoguer::{MultiSelect, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
-const MAX_CONCURRENT_DOWNLOADS: usize = 4;
+pub const DEFAULT_MAX_CONCURRENCY: usize = 3;
 
 /// CLI app to download & sync content from GIU CMS.
 #[derive(Parser, Debug)]
@@ -42,55 +45,27 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let username: String;
-    let password: String;
-    let save_to: PathBuf;
+    let config: Config;
 
     let mut courses_to_dl = Vec::new();
     if let Some(courses) = args.courses {
         courses_to_dl = courses;
     }
 
-    if let Some(username_) = args.username
-        && let Some(password_) = args.password
-        && let Some(save_to_) = args.path
+    if let Some(username) = args.username
+        && let Some(password) = args.password
+        && let Some(save_path) = args.path
     {
-        username = username_;
-        password = password_;
-        save_to = save_to_;
+        config = Config {
+            credentials: Credentials::new(&username, &password),
+            max_concurrency: Some(DEFAULT_MAX_CONCURRENCY),
+            save_path,
+        };
+
+        config.save().unwrap();
     } else {
-        username = Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("Username")
-            .interact_text()
-            .unwrap();
-
-        password = Password::with_theme(&ColorfulTheme::default())
-            .with_prompt("Password")
-            .validate_with(|input: &String| -> Result<(), &str> {
-                if input.chars().count() >= 8 {
-                    Ok(())
-                } else {
-                    Err("Password must be longer than 8 characters long.")
-                }
-            })
-            .interact()
-            .unwrap();
-
-        save_to = Input::with_theme(&ColorfulTheme::default())
-            .with_prompt("Save Downloads To")
-            .validate_with(|input: &String| -> Result<(), &str> {
-                if is_valid_path(input) {
-                    Ok(())
-                } else {
-                    Err("Invalid path")
-                }
-            })
-            .interact_text()
-            .unwrap()
-            .into();
+        config = Config::load().unwrap();
     }
-
-    let creds = Credentials::new(&username.to_lowercase(), &password);
 
     let bar = ProgressBar::new_spinner();
     bar.enable_steady_tick(Duration::from_millis(10));
@@ -101,13 +76,13 @@ fn main() {
     std::thread::sleep(Duration::from_secs(1));
 
     let mut client_builder = AuthenticatedClientBuilder::new();
-    client_builder.authenticate(&creds);
+    client_builder.authenticate(&config.credentials);
 
     let mut client = client_builder.build().unwrap();
 
     bar.finish_with_message(format!(
         "Successfully authenticated user: {}",
-        creds.username
+        config.credentials.username
     ));
     eprintln!("\n");
 
@@ -126,18 +101,20 @@ fn main() {
     let mut courses = fetched_courses;
     if courses_to_dl.is_empty() {
         let selection = MultiSelect::with_theme(&ColorfulTheme::default())
-            .with_prompt("Deselect courses to skip.")
+            .with_prompt("Select courses to download. (ESC or 'q' to download all)")
             .items_checked(
                 courses
                     .iter()
                     .cloned()
-                    .map(|x| (x, true))
+                    .map(|x| (x, false))
                     .collect::<Vec<(Course, bool)>>(),
             )
-            .interact()
+            .interact_opt()
             .unwrap();
 
-        courses = selection.iter().map(|&i| courses[i].clone()).collect();
+        if let Some(selection_idcs) = selection {
+            courses = selection_idcs.iter().map(|&i| courses[i].clone()).collect();
+        }
     } else {
         bar.reset();
         bar.enable_steady_tick(Duration::from_millis(10));
@@ -178,7 +155,11 @@ fn main() {
     eprintln!("\x1b[1mGot {} Total Files.\x1b[0m", total_count);
 
     course_content
-        .download(MAX_CONCURRENT_DOWNLOADS, &save_to.to_string_lossy(), &creds)
+        .download(
+            config.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY),
+            config.save_path,
+            &config.credentials,
+        )
         .unwrap();
 
     eprintln!("\x1b[1mFinished.\x1b[0m");

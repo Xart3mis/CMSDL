@@ -12,3 +12,5 @@ html-escape = "0.2.13"
 indicatif = { version = "0.18.2", features = ["improved_unicode"] }
 regex = "1.12.2"
 scraper = "0.24.0"
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "0.9.8"
