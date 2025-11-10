@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 pub struct CourseBuilder {
     title: Option<String>,
     season: Option<String>,
@@ -19,6 +21,12 @@ pub struct Course {
 
     pub course_id: i32,
     pub season_id: i32,
+}
+
+impl Display for Course {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} -| {}", self.code, self.title)
+    }
 }
 
 pub type Courses = Vec<Course>;

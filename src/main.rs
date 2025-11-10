@@ -11,7 +11,7 @@ mod utils;
 use utils::{CourseFilter, is_valid_path};
 
 use clap::Parser;
-use dialoguer::{Input, Password, theme::ColorfulTheme};
+use dialoguer::{Input, MultiSelect, Password, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
@@ -124,9 +124,21 @@ fn main() {
     eprintln!("\n");
 
     let mut courses = fetched_courses;
-    if !courses_to_dl.is_empty() {
-        dbg!(&courses_to_dl);
+    if courses_to_dl.is_empty() {
+        let selection = MultiSelect::with_theme(&ColorfulTheme::default())
+            .with_prompt("Deselect courses to skip.")
+            .items_checked(
+                courses
+                    .iter()
+                    .cloned()
+                    .map(|x| (x, true))
+                    .collect::<Vec<(Course, bool)>>(),
+            )
+            .interact()
+            .unwrap();
 
+        courses = selection.iter().map(|&i| courses[i].clone()).collect();
+    } else {
         bar.reset();
         bar.enable_steady_tick(Duration::from_millis(10));
         bar.set_message("Filtering Courses...");
@@ -134,7 +146,6 @@ fn main() {
         if let Some(found) = courses.find_by_ids(&courses_to_dl) {
             courses = found;
 
-            dbg!(&courses);
             bar.finish_with_message(format!("Filtered {} Courses.", courses.len()));
             eprintln!("\n");
         } else {
