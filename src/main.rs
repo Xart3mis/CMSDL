@@ -11,7 +11,7 @@ pub mod utils;
 use utils::CourseFilter;
 
 pub mod config;
-use config::{Config, Credentials};
+use config::{Config, Credentials, DownloadOptions};
 
 use clap::Parser;
 use dialoguer::{MultiSelect, theme::ColorfulTheme};
@@ -58,8 +58,11 @@ fn main() {
     {
         config = Config {
             credentials: Credentials::new(&username, &password),
-            max_concurrency: Some(DEFAULT_MAX_CONCURRENCY),
-            save_path,
+            download_options: DownloadOptions {
+                max_concurrency: None,
+                max_file_size: None,
+                save_path,
+            },
         };
 
         config.save().unwrap();
@@ -155,11 +158,7 @@ fn main() {
     eprintln!("\x1b[1mGot {} Total Files.\x1b[0m", total_count);
 
     course_content
-        .download(
-            config.max_concurrency.unwrap_or(DEFAULT_MAX_CONCURRENCY),
-            config.save_path,
-            &config.credentials,
-        )
+        .download(config.download_options, &config.credentials)
         .unwrap();
 
     eprintln!("\x1b[1mFinished.\x1b[0m");

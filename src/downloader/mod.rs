@@ -12,7 +12,6 @@ use std::{
     fs::File,
     io::Write,
     path::PathBuf,
-    sync::Arc,
     thread,
     time::{Duration, Instant},
 };
@@ -30,17 +29,47 @@ pub use traits::Download;
 
 impl Handler for DownloadHandler {
     fn write(&mut self, data: &[u8]) -> Result<usize, WriteError> {
-        self.file.write_all(data).map_err(|_| WriteError::Pause)?;
+        self.file.write_all(data).map_err(|e| {
+            self.error_msg = Some(format!("Write failed: {}", e));
+            WriteError::Pause
+        })?;
+
+        self.downloaded_size += data.len();
+
+        if let Some(max_size) = self.max_file_size
+            && self.downloaded_size > max_size
+        {
+            self.error_msg = Some(format!(
+                "Skipped: File size ({:.2} MB) exceeds limit ({:.2} MB)",
+                self.downloaded_size as f64 / 1_048_576.0,
+                max_size as f64 / 1_048_576.0
+            ));
+
+            return Err(WriteError::Pause);
+        }
+
         Ok(data.len())
     }
 
     fn progress(&mut self, dltotal: f64, dlnow: f64, _: f64, _: f64) -> bool {
         if dltotal > 0.0 {
+            if let Some(max_size) = self.max_file_size
+                && dltotal as usize > max_size
+            {
+                self.pb.finish_with_message(format!(
+                    "Skipped: File size ({:.2} MB) exceeds limit ({:.2} MB)",
+                    dltotal / 1_048_576.0,
+                    max_size as f64 / 1_048_576.0
+                ));
+                return false;
+            }
+
             self.pb.set_length(dltotal as u64);
             self.pb.set_position(dlnow as u64);
         } else {
             self.pb.set_message("unknown size");
         }
+
         true
     }
 }
@@ -88,11 +117,12 @@ impl<'a> Download<'a> for CourseContent {
 
         thread::sleep(Duration::from_secs(2));
 
-        let mp = Arc::new(MultiProgress::new());
+        let mp = MultiProgress::new();
 
-        let style =
-            ProgressStyle::with_template("{prefix:.dim} [{bar:30.magenta/black}] {percent:>3}%")?
-                .progress_chars("█░ ");
+        let style = ProgressStyle::with_template(
+            "{prefix:.dim} [{bar:30.magenta/black}] {percent:>3}% {msg:.bold}",
+        )?
+        .progress_chars("█░ ");
 
         let mut multi = Multi::new();
         multi.pipelining(true, true)?;
@@ -111,7 +141,7 @@ impl<'a> Download<'a> for CourseContent {
             })
             .collect();
 
-        sp.finish();
+        sp.finish_and_clear();
 
         let mut handles: HashMap<usize, Easy2Handle<DownloadHandler>> = HashMap::new();
         let mut next_token = 0;
@@ -141,6 +171,9 @@ impl<'a> Download<'a> for CourseContent {
                         prefix: pre,
                         scroll_offset: 0,
                         pb: pb.clone(),
+                        downloaded_size: 0,
+                        max_file_size: options.max_file_size,
+                        error_msg: None,
                     });
 
                     easy.http_auth(Auth::new().ntlm(true))?;
@@ -231,10 +264,11 @@ impl<'a> Download<'a> for CourseContent {
                         ));
                     }
                     Err(error) => {
-                        handle
-                            .get_ref()
-                            .pb
-                            .finish_with_message(format!("E: {}", error));
+                        if let Some(msg) = handle.get_ref().error_msg.clone() {
+                            handle.get_ref().pb.finish_with_message(msg);
+                        } else {
+                            handle.get_ref().pb.finish_with_message(error.to_string());
+                        }
                     }
                 }
 

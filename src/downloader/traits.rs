@@ -3,10 +3,15 @@ use super::{
 };
 
 pub struct DownloadHandler {
+    pub max_file_size: Option<usize>,
+    pub downloaded_size: usize,
     pub file: File,
-    pub prefix: String,
+
     pub scroll_offset: usize,
     pub pb: ProgressBar,
+    pub prefix: String,
+
+    pub error_msg: Option<String>,
 }
 
 pub struct DownloadableItem {
