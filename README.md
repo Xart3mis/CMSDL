@@ -12,11 +12,19 @@ A CLI application to download and sync content from GIU CMS (Course Management S
 
 ## Installation
 
-### Prerequisites
+### Option 1: Download Precompiled Binary (Recommended)
 
-- Rust and Cargo (install from [rustup.rs](https://rustup.rs/))
+Download the latest precompiled binary for your platform from the [GitHub Releases](https://github.com/Xart3mis/CMSDL/releases) page.
 
-### Building from Source
+1. Go to the [Releases page](https://github.com/Xart3mis/CMSDL/releases)
+2. Download the binary for your operating system
+3. Extract the archive (if applicable)
+4. Make the binary executable (Linux/macOS): `chmod +x cms_dl`
+5. Optionally, move it to a directory in your PATH for easy access
+
+### Option 2: Build from Source
+
+**Prerequisites:** Rust and Cargo (install from [rustup.rs](https://rustup.rs/))
 
 ```bash
 git clone https://github.com/Xart3mis/CMSDL.git
@@ -206,11 +214,6 @@ Passwords must be at least 8 characters. This is validated both during interacti
 - Ensure you can log in to GIU CMS through a web browser
 
 ## Development
-
-### Running Tests
-```bash
-cargo test
-```
 
 ### Building for Release
 ```bash
