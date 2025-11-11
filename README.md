@@ -111,6 +111,12 @@ username = "your_username"
 # Required: Your GIU CMS password
 password = "your_password"
 
+[general_options]
+# Required: Prompt user to filter specific courses
+# Type: Boolean
+# Default: false
+interactive_filtering = false
+
 [download_options]
 # Optional: Maximum number of concurrent downloads
 # Type: Integer (usize)
@@ -139,6 +145,13 @@ save_path = "/path/to/downloads"
 | `username` | Yes | String | Your GIU CMS account username |
 | `password` | Yes | String | Your GIU CMS account password (minimum 8 characters) |
 
+#### `[general_options]` Section
+
+| Entry | Required | Type | Description |
+|-------|----------|------|-------------|
+| `interactive_filtering` | Yes | Boolean | Whether to prompt user for course filtering |
+
+
 #### `[download_options]` Section
 
 | Entry | Required | Type | Default | Description |
@@ -155,6 +168,9 @@ save_path = "/path/to/downloads"
 username = "john.doe"
 password = "mySecurePassword123"
 
+[general_options]
+interactive_filtering = false
+
 [download_options]
 save_path = "./Downloads"
 ```
@@ -164,6 +180,9 @@ save_path = "./Downloads"
 [credentials]
 username = "john.doe"
 password = "mySecurePassword123"
+
+[general_options]
+interactive_filtering = false
 
 [download_options]
 max_concurrency = 5
@@ -176,6 +195,9 @@ save_path = "/home/user/GIU_Downloads"
 [credentials]
 username = "john.doe"
 password = "mySecurePassword123"
+
+[general_options]
+interactive_filtering = false
 
 [download_options]
 max_concurrency = 3
@@ -219,20 +241,6 @@ Passwords must be at least 8 characters. This is validated both during interacti
 ```bash
 cargo build --release
 ```
-
-## Dependencies
-
-This project uses the following main dependencies:
-- `clap` - Command-line argument parsing
-- `serde` & `toml` - Configuration file handling
-- `curl` - HTTP client with NTLM authentication support
-- `scraper` - HTML parsing
-- `dialoguer` - Interactive CLI prompts
-- `indicatif` - Progress indicators
-
-## License
-
-See the project repository for license information.
 
 ## Contributing
 
