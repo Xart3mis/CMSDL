@@ -85,7 +85,7 @@ cargo run -- -u your_username -p your_password --path ./Downloads --courses=34,2
 ```
 
 #### Interactive Mode
-When you don't specify courses via `--courses`, the application will present an interactive list where you can:
+When you don't specify courses via `--courses` and interactive_filtering is enabled, the application will present an interactive list where you can:
 - Use arrow keys to navigate
 - Press Space to select/deselect courses
 - Press ESC or 'q' to download all courses
