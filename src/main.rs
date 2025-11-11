@@ -11,7 +11,7 @@ pub mod utils;
 use utils::CourseFilter;
 
 pub mod config;
-use config::{Config, Credentials, DownloadOptions};
+use config::{Config, Credentials, DownloadOptions, GeneralOptions};
 
 use clap::Parser;
 use dialoguer::{MultiSelect, theme::ColorfulTheme};
@@ -58,6 +58,7 @@ fn main() {
     {
         config = Config {
             credentials: Credentials::new(&username, &password),
+            general_options: GeneralOptions::default(),
             download_options: DownloadOptions {
                 max_concurrency: None,
                 max_file_size: None,
@@ -102,7 +103,7 @@ fn main() {
     eprintln!("\n");
 
     let mut courses = fetched_courses;
-    if courses_to_dl.is_empty() {
+    if courses_to_dl.is_empty() && config.general_options.interactive_filtering {
         let selection = MultiSelect::with_theme(&ColorfulTheme::default())
             .with_prompt("Select courses to download. (ESC or 'q' to download all)")
             .items_checked(

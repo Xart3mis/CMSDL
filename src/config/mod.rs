@@ -51,8 +51,14 @@ pub struct DownloadOptions {
     pub save_path: PathBuf,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct GeneralOptions {
+    pub interactive_filtering: bool,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Config {
+    pub general_options: GeneralOptions,
     pub credentials: Credentials,
     pub download_options: DownloadOptions,
 }
@@ -87,13 +93,16 @@ impl Config {
             .interact_text()?
             .into();
 
+        let download_options = DownloadOptions {
+            max_concurrency: None,
+            max_file_size: None,
+            save_path,
+        };
+
         let config = Config {
+            general_options: GeneralOptions::default(),
+            download_options,
             credentials,
-            download_options: DownloadOptions {
-                max_concurrency: None,
-                max_file_size: None,
-                save_path,
-            },
         };
 
         config.save()?;
