@@ -19,6 +19,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
+use anyhow::{Context, Result};
+
 pub const DEFAULT_MAX_CONCURRENCY: usize = 3;
 
 /// CLI app to download & sync content from GIU CMS.
@@ -42,7 +44,7 @@ struct Args {
     courses: Option<Vec<i32>>,
 }
 
-fn main() {
+fn main() -> Result<()> {
     let args = Args::parse();
 
     let config: Config;
@@ -66,14 +68,17 @@ fn main() {
             },
         };
 
-        config.save().unwrap();
+        config.save().context("Failed to save configuration")?;
     } else {
-        config = Config::load().unwrap();
+        config = Config::load().context("Failed to load configuration")?;
     }
 
     let bar = ProgressBar::new_spinner();
     bar.enable_steady_tick(Duration::from_millis(10));
-    bar.set_style(ProgressStyle::with_template("{spinner:.cyan.bold} {msg:.bold}").unwrap());
+    bar.set_style(
+        ProgressStyle::with_template("{spinner:.cyan.bold} {msg:.bold}")
+            .context("Failed to parse progress style template")?,
+    );
 
     bar.set_message("Authenticating Client...");
 
@@ -82,7 +87,9 @@ fn main() {
     let mut client_builder = AuthenticatedClientBuilder::new();
     client_builder.authenticate(&config.credentials);
 
-    let mut client = client_builder.build().unwrap();
+    let mut client = client_builder
+        .build()
+        .context("Failed to build authenticated client")?;
 
     bar.finish_with_message(format!(
         "Successfully authenticated user: {}",
@@ -114,7 +121,7 @@ fn main() {
                     .collect::<Vec<(Course, bool)>>(),
             )
             .interact_opt()
-            .unwrap();
+            .context("Failed to create courses multi select")?;
 
         if let Some(selection_idcs) = selection {
             courses = selection_idcs.iter().map(|&i| courses[i].clone()).collect();
@@ -160,7 +167,9 @@ fn main() {
 
     course_content
         .download(config.download_options, &config.credentials)
-        .unwrap();
+        .context("Failed to download course")?;
 
     eprintln!("\x1b[1mFinished.\x1b[0m");
+
+    Ok(())
 }
