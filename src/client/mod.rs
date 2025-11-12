@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use curl::easy::{Auth, Easy};
 
 use super::{
@@ -66,7 +66,7 @@ impl AuthenticatedClient {
                     response_data.extend_from_slice(data);
                     Ok(data.len())
                 })
-                .unwrap();
+                .context("Failed to set write function")?;
             transfer.perform()?;
         }
 

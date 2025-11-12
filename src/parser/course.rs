@@ -1,3 +1,5 @@
+use anyhow::Context;
+
 use super::{
     AuthenticatedClient, CourseBuilder, Courses, CoursesParser, GetHtmlExt, Parsable, Regex,
     Selector, fix_html,
@@ -8,7 +10,7 @@ where
     CoursesParser: GetHtmlExt,
 {
     fn parse(&self, client: &mut AuthenticatedClient) -> anyhow::Result<Courses> {
-        let document = self.get_html(client).expect("Failed to get html");
+        let document = self.get_html(client).context("Failed to get html")?;
 
         let course_selector = Selector::parse("td").expect("Failed to parse Selector");
         let courses_selector = Selector::parse(
@@ -16,7 +18,8 @@ where
         )
         .expect("Failed to parse Selector");
 
-        let re = Regex::new(r"(?i)\(\|(?P<code>[A-Za-z0-9]+)\|\)\s+(?P<name>[^()]+)").unwrap();
+        let re = Regex::new(r"(?i)\(\|(?P<code>[A-Za-z0-9]+)\|\)\s+(?P<name>[^()]+)")
+            .context("Failed to create course code regex")?;
 
         let mut courses_list = Vec::new();
         for courses in document.select(&courses_selector).skip(1) {

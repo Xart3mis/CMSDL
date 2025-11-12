@@ -103,14 +103,14 @@ fn main() -> Result<()> {
 
     let fetched_courses: Vec<Course> = CoursesParser::new()
         .parse(&mut client)
-        .expect("Failed to fetch & parse courses")
+        .context("Failed to fetch & parse courses")?
         .deduplicate();
 
     bar.finish_with_message(format!("Got {} Courses.", fetched_courses.len()));
     eprintln!("\n");
 
     let mut courses = fetched_courses;
-    if courses_to_dl.is_empty() && config.general_options.interactive_filtering {
+    if config.general_options.interactive_filtering {
         let selection = MultiSelect::with_theme(&ColorfulTheme::default())
             .with_prompt("Select courses to download. (ESC or 'q' to download all)")
             .items_checked(
@@ -126,7 +126,9 @@ fn main() -> Result<()> {
         if let Some(selection_idcs) = selection {
             courses = selection_idcs.iter().map(|&i| courses[i].clone()).collect();
         }
-    } else {
+    }
+
+    if !courses_to_dl.is_empty() {
         bar.reset();
         bar.enable_steady_tick(Duration::from_millis(10));
         bar.set_message("Filtering Courses...");
@@ -152,7 +154,7 @@ fn main() -> Result<()> {
 
         let content = course
             .parse(&mut client)
-            .expect("Failed to fetch & parse courses");
+            .context("Failed to fetch & parse courses")?;
 
         let size = content.len();
 

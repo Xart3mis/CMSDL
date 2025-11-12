@@ -1,6 +1,7 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
 pub use anyhow::Result;
+use anyhow::Context;
 
 use curl::{
     easy::{Auth, Easy2, Handler, WriteError},
@@ -205,7 +206,7 @@ impl<'a> Download<'a> for CourseContent {
 
                     let mut file = File::create(&filename)?;
                     file.write_all(description.as_bytes())
-                        .expect("Failed to write description to file");
+                        .context("Failed to write description to file")?;
 
                     return Ok(false);
                 }
