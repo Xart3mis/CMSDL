@@ -1,5 +1,5 @@
 use super::{
-    Content, ContentType, Course, Credentials, DownloadOptions, File, HashMap, ProgressBar, Result,
+    Content, ContentType, Course, Credentials, DownloadOptions, File, HashMap, ProgressBar, error,
 };
 
 pub struct DownloadHandler {
@@ -28,7 +28,7 @@ pub trait Download<'a> {
         &self,
         download_options: DownloadOptions,
         credentials: &'a Credentials,
-    ) -> Result<()>;
+    ) -> Result<(), error::DownloadError>;
 }
 
 pub type CourseContent = HashMap<Course, Vec<Content>>;

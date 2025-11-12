@@ -19,7 +19,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
-use anyhow::{Context, Result};
+use anyhow::Context;
 
 pub const DEFAULT_MAX_CONCURRENCY: usize = 3;
 
@@ -44,7 +44,7 @@ struct Args {
     courses: Option<Vec<i32>>,
 }
 
-fn main() -> Result<()> {
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let config: Config;

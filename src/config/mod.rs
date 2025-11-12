@@ -1,4 +1,3 @@
-use anyhow::Result;
 use dialoguer::{Input, Password, theme::ColorfulTheme};
 use serde::{Deserialize, Serialize};
 use std::{
@@ -7,6 +6,8 @@ use std::{
 };
 
 use super::utils::is_valid_path;
+
+mod error;
 
 const CONFIG_FILE: &str = "config.toml";
 
@@ -24,7 +25,7 @@ impl Credentials {
         }
     }
 
-    pub fn prompt() -> Result<Credentials> {
+    pub fn prompt() -> Result<Credentials, error::ConfigError> {
         let username: String = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("Username")
             .interact_text()?;
@@ -64,7 +65,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load() -> Result<Self> {
+    pub fn load() -> Result<Self, error::ConfigError> {
         if Path::new(CONFIG_FILE).exists() {
             Self::load_from_file()
         } else {
@@ -73,13 +74,13 @@ impl Config {
         }
     }
 
-    fn load_from_file() -> Result<Self> {
+    fn load_from_file() -> Result<Self, error::ConfigError> {
         let content = fs::read_to_string(CONFIG_FILE)?;
         let config: Config = toml::from_str(&content)?;
         Ok(config)
     }
 
-    fn create_new() -> Result<Self> {
+    fn create_new() -> Result<Self, error::ConfigError> {
         let credentials = Credentials::prompt()?;
         let save_path = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("Save Downloads To")
@@ -110,14 +111,18 @@ impl Config {
         Ok(config)
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&self) -> Result<(), error::ConfigError> {
         let toml_string = toml::to_string_pretty(self)?;
         fs::write(CONFIG_FILE, toml_string)?;
         Ok(())
     }
 
     /// Update credentials and save
-    pub fn update_credentials(&mut self, username: String, password: String) -> Result<()> {
+    pub fn update_credentials(
+        &mut self,
+        username: String,
+        password: String,
+    ) -> Result<(), error::ConfigError> {
         self.credentials = Credentials { username, password };
         self.save()
     }

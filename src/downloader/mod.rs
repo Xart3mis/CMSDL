@@ -1,8 +1,5 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 
-pub use anyhow::Result;
-use anyhow::Context;
-
 use curl::{
     easy::{Auth, Easy2, Handler, WriteError},
     multi::{Easy2Handle, Multi},
@@ -13,12 +10,13 @@ use std::{
     fs::File,
     io::Write,
     path::PathBuf,
-    thread,
     time::{Duration, Instant},
 };
 
 mod traits;
 use traits::{CourseContent, DownloadHandler, DownloadableItem};
+
+mod error;
 
 use super::{
     DEFAULT_MAX_CONCURRENCY,
@@ -105,8 +103,103 @@ impl DownloadableItem {
     }
 }
 
+fn build_download_queue(
+    content: &CourseContent,
+    options: &DownloadOptions,
+) -> VecDeque<DownloadableItem> {
+    content
+        .iter()
+        .flat_map(|(course, contents)| {
+            contents
+                .iter()
+                .map(move |c| DownloadableItem::new(course.clone(), c.clone()))
+        })
+        .filter(|x| {
+            x.content_type != ContentType::VoD
+                && x.path(options.save_path.clone())
+                    .is_some_and(|y| !y.exists())
+        })
+        .collect()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn start_next_download(
+    multi: &mut Multi,
+    queue: &mut VecDeque<DownloadableItem>,
+    handles: &mut HashMap<usize, Easy2Handle<DownloadHandler>>,
+    token: &mut usize,
+    options: &DownloadOptions,
+    credentials: &Credentials,
+    mp: &MultiProgress,
+    style: &ProgressStyle,
+) -> Result<bool, error::DownloadError> {
+    if let Some(item) = queue.pop_front() {
+        if let Some(download_link) = &item.download_link
+            && let Some(filename) = item.path(options.save_path.clone())
+        {
+            if let Some(parent) = filename.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+
+            let file = File::create(&filename)?;
+            let pre = format!(" {} -| {} ", item.course.title, item.title);
+
+            let pb = mp.add(ProgressBar::new(0));
+            pb.set_prefix(format_fixed_prefix(*token, pre.trim(), 60));
+            pb.set_style(style.clone());
+
+            let mut easy = Easy2::new(DownloadHandler {
+                file,
+                prefix: pre,
+                scroll_offset: 0,
+                pb: pb.clone(),
+                downloaded_size: 0,
+                max_file_size: options.max_file_size,
+                error_msg: None,
+            });
+
+            easy.http_auth(Auth::new().ntlm(true))?;
+            easy.username(&credentials.username)?;
+            easy.password(&credentials.password)?;
+
+            let url = format!("https://cms.giu-uni.de{}", download_link);
+            easy.url(&url)?;
+            easy.follow_location(true)?;
+            easy.progress(true)?;
+            easy.tcp_keepalive(true)?;
+
+            let mut handle = multi.add2(easy)?;
+            handle.set_token(*token)?;
+            handles.insert(*token, handle);
+            *token += 1;
+
+            Ok(true)
+        } else if let Some(description) = item.description {
+            let mut filename = options.save_path.clone();
+            filename.push(&item.course.title);
+            filename.push(format!("{}.txt", &item.title));
+
+            if let Some(parent) = filename.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+
+            let mut file = File::create(&filename)?;
+            file.write_all(description.as_bytes())?;
+            Ok(false)
+        } else {
+            Ok(false)
+        }
+    } else {
+        Ok(false)
+    }
+}
+
 impl<'a> Download<'a> for CourseContent {
-    fn download(&self, options: DownloadOptions, credentials: &'a Credentials) -> Result<()> {
+    fn download(
+        &self,
+        options: DownloadOptions,
+        credentials: &'a Credentials,
+    ) -> Result<(), error::DownloadError> {
         let sp = ProgressBar::new_spinner();
 
         sp.set_style(ProgressStyle::with_template(
@@ -115,8 +208,6 @@ impl<'a> Download<'a> for CourseContent {
         sp.enable_steady_tick(Duration::from_millis(15));
 
         sp.set_message("Starting Downloads...");
-
-        thread::sleep(Duration::from_secs(2));
 
         let mp = MultiProgress::new();
 
@@ -128,99 +219,28 @@ impl<'a> Download<'a> for CourseContent {
         let mut multi = Multi::new();
         multi.pipelining(true, true)?;
 
-        let mut queue: VecDeque<DownloadableItem> = self
-            .iter()
-            .flat_map(|(course, contents)| {
-                contents
-                    .iter()
-                    .map(move |content| DownloadableItem::new(course.clone(), content.clone()))
-            })
-            .filter(|x| {
-                x.content_type != ContentType::VoD
-                    && x.path(options.save_path.clone())
-                        .is_some_and(|y| !y.exists())
-            })
-            .collect();
+        let mut queue = build_download_queue(self, &options);
 
         sp.finish_and_clear();
 
         let mut handles: HashMap<usize, Easy2Handle<DownloadHandler>> = HashMap::new();
         let mut next_token = 0;
-        let start_next = |multi: &mut Multi,
-                          queue: &mut VecDeque<DownloadableItem>,
-                          handles: &mut HashMap<usize, Easy2Handle<DownloadHandler>>,
-                          token: &mut usize|
-         -> Result<bool> {
-            if let Some(item) = queue.pop_front() {
-                if let Some(download_link) = &item.download_link
-                    && let Some(filename) = item.path(options.save_path.clone())
-                {
-                    if let Some(parent) = filename.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-
-                    let file = File::create(&filename)?;
-
-                    let pre = format!(" {} -| {} ", item.course.title, item.title);
-
-                    let pb = mp.add(ProgressBar::new(0));
-                    pb.set_prefix(format_fixed_prefix(*token, pre.trim(), 60));
-                    pb.set_style(style.clone());
-
-                    let mut easy = Easy2::new(DownloadHandler {
-                        file,
-                        prefix: pre,
-                        scroll_offset: 0,
-                        pb: pb.clone(),
-                        downloaded_size: 0,
-                        max_file_size: options.max_file_size,
-                        error_msg: None,
-                    });
-
-                    easy.http_auth(Auth::new().ntlm(true))?;
-                    easy.username(&credentials.username)?;
-                    easy.password(&credentials.password)?;
-
-                    let url = format!("https://cms.giu-uni.de{}", download_link);
-
-                    easy.url(&url)?;
-                    easy.follow_location(true)?;
-                    easy.progress(true)?;
-                    easy.tcp_keepalive(true)?;
-
-                    let mut handle = multi.add2(easy)?;
-                    handle.set_token(*token)?;
-                    handles.insert(*token, handle);
-                    *token += 1;
-
-                    return Ok(true);
-                } else if let Some(description) = item.description {
-                    let mut filename = options.save_path.clone();
-
-                    filename.push(&item.course.title);
-                    filename.push(format!("{}.txt", &item.title));
-
-                    if let Some(parent) = std::path::Path::new(&filename).parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-
-                    let mut file = File::create(&filename)?;
-                    file.write_all(description.as_bytes())
-                        .context("Failed to write description to file")?;
-
-                    return Ok(false);
-                }
-            }
-
-            Ok(false)
-        };
 
         for _ in 0..options
             .max_concurrency
             .unwrap_or(DEFAULT_MAX_CONCURRENCY)
             .min(queue.len())
         {
-            if !start_next(&mut multi, &mut queue, &mut handles, &mut next_token)? {
+            if !start_next_download(
+                &mut multi,
+                &mut queue,
+                &mut handles,
+                &mut next_token,
+                &options,
+                credentials,
+                &mp,
+                &style,
+            )? {
                 continue;
             }
         }
@@ -278,7 +298,16 @@ impl<'a> Download<'a> for CourseContent {
 
             for token in finished_tokens {
                 handles.remove(&token);
-                start_next(&mut multi, &mut queue, &mut handles, &mut next_token)?;
+                start_next_download(
+                    &mut multi,
+                    &mut queue,
+                    &mut handles,
+                    &mut next_token,
+                    &options,
+                    credentials,
+                    &mp,
+                    &style,
+                )?;
             }
 
             if !handles.is_empty() {

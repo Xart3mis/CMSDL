@@ -1,10 +1,11 @@
-use anyhow::{Context, Result};
 use curl::easy::{Auth, Easy};
 
 use super::{
     config::Credentials,
     parser::models::course::{Course, CoursesParser},
 };
+
+pub mod error;
 
 const CMS_BASE_URL: &str = "https://cms.giu-uni.de/";
 const CMS_HOME: &str = "apps/student/HomePageStn.aspx";
@@ -28,7 +29,7 @@ impl<'a> AuthenticatedClientBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> Result<AuthenticatedClient> {
+    pub fn build(self) -> Result<AuthenticatedClient, error::ClientError> {
         let mut client = AuthenticatedClient::new();
 
         if let Some(credentials) = self.credentials {
@@ -46,7 +47,7 @@ impl AuthenticatedClient {
         }
     }
 
-    pub fn authenticate(&mut self, credentials: &Credentials) -> Result<()> {
+    pub fn authenticate(&mut self, credentials: &Credentials) -> Result<(), curl::Error> {
         self.handle.http_auth(Auth::new().ntlm(true))?;
 
         self.handle.username(&credentials.username)?;
@@ -55,18 +56,16 @@ impl AuthenticatedClient {
         Ok(())
     }
 
-    pub fn get(&mut self, url: &str) -> Result<String> {
+    pub fn get(&mut self, url: &str) -> Result<String, error::ClientError> {
         self.handle.url(url)?;
 
         let mut response_data = Vec::new();
         {
             let mut transfer = self.handle.transfer();
-            transfer
-                .write_function(|data| {
-                    response_data.extend_from_slice(data);
-                    Ok(data.len())
-                })
-                .context("Failed to set write function")?;
+            transfer.write_function(|data| {
+                response_data.extend_from_slice(data);
+                Ok(data.len())
+            })?;
             transfer.perform()?;
         }
 
@@ -75,11 +74,17 @@ impl AuthenticatedClient {
 }
 
 pub trait GetHtmlExt {
-    fn get_html(&self, client: &mut AuthenticatedClient) -> Result<scraper::Html>;
+    fn get_html(
+        &self,
+        client: &mut AuthenticatedClient,
+    ) -> Result<scraper::Html, error::ClientError>;
 }
 
 impl GetHtmlExt for CoursesParser {
-    fn get_html(&self, client: &mut AuthenticatedClient) -> Result<scraper::Html> {
+    fn get_html(
+        &self,
+        client: &mut AuthenticatedClient,
+    ) -> Result<scraper::Html, error::ClientError> {
         Ok(scraper::Html::parse_document(
             &client.get(format!("{}{}", CMS_BASE_URL, CMS_HOME,).as_str())?,
         ))
@@ -87,7 +92,10 @@ impl GetHtmlExt for CoursesParser {
 }
 
 impl GetHtmlExt for Course {
-    fn get_html(&self, client: &mut AuthenticatedClient) -> Result<scraper::Html> {
+    fn get_html(
+        &self,
+        client: &mut AuthenticatedClient,
+    ) -> Result<scraper::Html, error::ClientError> {
         Ok(scraper::Html::parse_document(
             &client.get(
                 format!(

@@ -1,9 +1,9 @@
-use anyhow::Result;
 use regex::Regex;
 use scraper::Selector;
 
 pub mod content;
 pub mod course;
+pub mod error;
 
 use html_escape::decode_html_entities;
 fn fix_html(s: String) -> String {
@@ -11,7 +11,7 @@ fn fix_html(s: String) -> String {
 }
 
 pub trait Parsable<O> {
-    fn parse(&self, client: &mut AuthenticatedClient) -> Result<O>;
+    fn parse(&self, client: &mut AuthenticatedClient) -> Result<O, error::ParseError>;
 }
 
 pub mod models;
