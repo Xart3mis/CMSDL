@@ -1,10 +1,10 @@
-mod client;
-use client::AuthenticatedClientBuilder;
+pub mod client;
+use client::AuthenticatedClient;
 
-mod parser;
+pub mod parser;
 use parser::{Content, Course, CoursesParser, Parsable};
 
-mod downloader;
+pub mod downloader;
 use downloader::Download;
 
 pub mod utils;
@@ -17,9 +17,7 @@ use clap::Parser;
 use dialoguer::{MultiSelect, theme::ColorfulTheme};
 use indicatif::{ProgressBar, ProgressStyle};
 
-use std::{collections::HashMap, path::PathBuf, time::Duration};
-
-use anyhow::Context;
+use std::{collections::HashMap, error::Error, path::PathBuf, time::Duration};
 
 pub const DEFAULT_MAX_CONCURRENCY: usize = 3;
 
@@ -44,7 +42,7 @@ struct Args {
     courses: Option<Vec<i32>>,
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
     let config: Config;
@@ -68,28 +66,23 @@ fn main() -> anyhow::Result<()> {
             },
         };
 
-        config.save().context("Failed to save configuration")?;
+        config.save()?;
     } else {
-        config = Config::load().context("Failed to load configuration")?;
+        config = Config::load()?;
     }
 
     let bar = ProgressBar::new_spinner();
     bar.enable_steady_tick(Duration::from_millis(10));
-    bar.set_style(
-        ProgressStyle::with_template("{spinner:.cyan.bold} {msg:.bold}")
-            .context("Failed to parse progress style template")?,
-    );
+    bar.set_style(ProgressStyle::with_template(
+        "{spinner:.cyan.bold} {msg:.bold}",
+    )?);
 
     bar.set_message("Authenticating Client...");
 
     std::thread::sleep(Duration::from_secs(1));
 
-    let mut client_builder = AuthenticatedClientBuilder::new();
-    client_builder.authenticate(&config.credentials);
-
-    let mut client = client_builder
-        .build()
-        .context("Failed to build authenticated client")?;
+    let mut client = AuthenticatedClient::new();
+    client.authenticate(&config.credentials)?;
 
     bar.finish_with_message(format!(
         "Successfully authenticated user: {}",
@@ -101,10 +94,7 @@ fn main() -> anyhow::Result<()> {
     bar.enable_steady_tick(Duration::from_millis(10));
     bar.set_message("Scraping Courses...");
 
-    let fetched_courses: Vec<Course> = CoursesParser::new()
-        .parse(&mut client)
-        .context("Failed to fetch & parse courses")?
-        .deduplicate();
+    let fetched_courses: Vec<Course> = CoursesParser::new().parse(&mut client)?.deduplicate();
 
     bar.finish_with_message(format!("Got {} Courses.", fetched_courses.len()));
     eprintln!("\n");
@@ -120,8 +110,7 @@ fn main() -> anyhow::Result<()> {
                     .map(|x| (x, false))
                     .collect::<Vec<(Course, bool)>>(),
             )
-            .interact_opt()
-            .context("Failed to create courses multi select")?;
+            .interact_opt()?;
 
         if let Some(selection_idcs) = selection {
             courses = selection_idcs.iter().map(|&i| courses[i].clone()).collect();
@@ -152,9 +141,7 @@ fn main() -> anyhow::Result<()> {
         bar.enable_steady_tick(Duration::from_millis(10));
         bar.set_message(format!("Scraping {} Content...", course.title));
 
-        let content = course
-            .parse(&mut client)
-            .context("Failed to fetch & parse courses")?;
+        let content = course.parse(&mut client)?;
 
         let size = content.len();
 
@@ -167,9 +154,7 @@ fn main() -> anyhow::Result<()> {
 
     eprintln!("\x1b[1mGot {} Total Files.\x1b[0m", total_count);
 
-    course_content
-        .download(config.download_options, &config.credentials)
-        .context("Failed to download course")?;
+    course_content.download(config.download_options, &config.credentials)?;
 
     eprintln!("\x1b[1mFinished.\x1b[0m");
 

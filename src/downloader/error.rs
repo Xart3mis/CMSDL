@@ -1,16 +1,16 @@
 use thiserror::Error;
 
 #[derive(Error, Debug)]
-pub enum DownloadError {
-    #[error(transparent)]
-    StyleTemplateError(#[from] indicatif::style::TemplateError),
+pub enum Error {
+    #[error("error parsing style template")]
+    StyleTemplate(#[from] indicatif::style::TemplateError),
 
     #[error(transparent)]
-    CurlMultiError(#[from] curl::MultiError),
+    CurlMulti(#[from] curl::MultiError),
 
     #[error(transparent)]
-    CurlError(#[from] curl::Error),
+    Curl(#[from] curl::Error),
 
-    #[error(transparent)]
-    FileError(#[from] std::io::Error),
+    #[error("I/O error occurred")]
+    File(#[from] std::io::Error),
 }

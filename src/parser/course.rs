@@ -7,7 +7,7 @@ impl Parsable<Courses> for CoursesParser
 where
     CoursesParser: GetHtmlExt,
 {
-    fn parse(&self, client: &mut AuthenticatedClient) -> Result<Courses, error::ParseError> {
+    fn parse(&self, client: &mut AuthenticatedClient) -> Result<Courses, error::Error> {
         let document = self.get_html(client)?;
 
         let course_selector = Selector::parse("td")?;

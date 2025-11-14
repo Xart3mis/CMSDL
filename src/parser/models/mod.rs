@@ -1,2 +1,2 @@
 pub mod course;
-pub mod content;
+pub(super) mod content;

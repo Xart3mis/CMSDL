@@ -132,7 +132,7 @@ fn start_next_download(
     credentials: &Credentials,
     mp: &MultiProgress,
     style: &ProgressStyle,
-) -> Result<bool, error::DownloadError> {
+) -> Result<bool, error::Error> {
     if let Some(item) = queue.pop_front() {
         if let Some(download_link) = &item.download_link
             && let Some(filename) = item.path(options.save_path.clone())
@@ -199,7 +199,7 @@ impl<'a> Download<'a> for CourseContent {
         &self,
         options: DownloadOptions,
         credentials: &'a Credentials,
-    ) -> Result<(), error::DownloadError> {
+    ) -> Result<(), error::Error> {
         let sp = ProgressBar::new_spinner();
 
         sp.set_style(ProgressStyle::with_template(

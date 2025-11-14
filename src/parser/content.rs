@@ -1,13 +1,13 @@
 use super::{
     AuthenticatedClient, Content, ContentBuilder, Course, GetHtmlExt, Parsable, Regex, Selector,
-    error::ParseError, fix_html,
+    error::Error, fix_html,
 };
 
 impl Parsable<Vec<Content>> for Course
 where
     Course: GetHtmlExt,
 {
-    fn parse(&self, client: &mut AuthenticatedClient) -> Result<Vec<Content>, ParseError> {
+    fn parse(&self, client: &mut AuthenticatedClient) -> Result<Vec<Content>, Error> {
         let document = self.get_html(client)?;
 
         let content_selector = Selector::parse(".card.weeksdata .card.mb-4")?;

@@ -15,28 +15,9 @@ pub struct AuthenticatedClient {
     handle: Easy,
 }
 
-pub struct AuthenticatedClientBuilder<'a> {
-    credentials: Option<&'a Credentials>,
-}
-
-impl<'a> AuthenticatedClientBuilder<'a> {
-    pub fn new() -> Self {
-        Self { credentials: None }
-    }
-
-    pub fn authenticate(&mut self, credentials: &'a Credentials) -> &mut Self {
-        self.credentials = Some(credentials);
-        self
-    }
-
-    pub fn build(self) -> Result<AuthenticatedClient, error::ClientError> {
-        let mut client = AuthenticatedClient::new();
-
-        if let Some(credentials) = self.credentials {
-            client.authenticate(credentials)?;
-        }
-
-        Ok(client)
+impl Default for AuthenticatedClient {
+    fn default() -> AuthenticatedClient {
+        Self::new()
     }
 }
 
@@ -56,7 +37,7 @@ impl AuthenticatedClient {
         Ok(())
     }
 
-    pub fn get(&mut self, url: &str) -> Result<String, error::ClientError> {
+    pub fn get(&mut self, url: &str) -> Result<String, error::Error> {
         self.handle.url(url)?;
 
         let mut response_data = Vec::new();
@@ -74,17 +55,11 @@ impl AuthenticatedClient {
 }
 
 pub trait GetHtmlExt {
-    fn get_html(
-        &self,
-        client: &mut AuthenticatedClient,
-    ) -> Result<scraper::Html, error::ClientError>;
+    fn get_html(&self, client: &mut AuthenticatedClient) -> Result<scraper::Html, error::Error>;
 }
 
 impl GetHtmlExt for CoursesParser {
-    fn get_html(
-        &self,
-        client: &mut AuthenticatedClient,
-    ) -> Result<scraper::Html, error::ClientError> {
+    fn get_html(&self, client: &mut AuthenticatedClient) -> Result<scraper::Html, error::Error> {
         Ok(scraper::Html::parse_document(
             &client.get(format!("{}{}", CMS_BASE_URL, CMS_HOME,).as_str())?,
         ))
@@ -92,10 +67,7 @@ impl GetHtmlExt for CoursesParser {
 }
 
 impl GetHtmlExt for Course {
-    fn get_html(
-        &self,
-        client: &mut AuthenticatedClient,
-    ) -> Result<scraper::Html, error::ClientError> {
+    fn get_html(&self, client: &mut AuthenticatedClient) -> Result<scraper::Html, error::Error> {
         Ok(scraper::Html::parse_document(
             &client.get(
                 format!(

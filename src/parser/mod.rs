@@ -11,7 +11,7 @@ fn fix_html(s: String) -> String {
 }
 
 pub trait Parsable<O> {
-    fn parse(&self, client: &mut AuthenticatedClient) -> Result<O, error::ParseError>;
+    fn parse(&self, client: &mut AuthenticatedClient) -> Result<O, error::Error>;
 }
 
 pub mod models;
