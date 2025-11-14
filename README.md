@@ -72,16 +72,16 @@ cms_dl [OPTIONS]
 #### Using Config File
 ```bash
 # Run with existing config.toml
-cargo run
+cms_dl
 ```
 
 #### Using Command Line Arguments
 ```bash
 # Download all courses with credentials from command line
-cargo run -- -u your_username -p your_password --path ./Downloads
+cms_dl -u your_username -p your_password --path ./Downloads
 
 # Download specific courses
-cargo run -- -u your_username -p your_password --path ./Downloads --courses=34,2488,156
+cms_dl -u your_username -p your_password --path ./Downloads --courses=34,2488,156
 ```
 
 #### Interactive Mode
