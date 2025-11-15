@@ -19,6 +19,10 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use std::{collections::HashMap, error::Error, path::PathBuf, time::Duration};
 
+#[cfg(test)]
+#[path = "tests.rs"]
+mod tests;
+
 pub const DEFAULT_MAX_CONCURRENCY: usize = 3;
 
 /// CLI app to download & sync content from GIU CMS.
