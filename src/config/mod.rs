@@ -25,7 +25,7 @@ impl Credentials {
         }
     }
 
-    pub fn prompt() -> Result<Credentials, error::ConfigError> {
+    pub fn prompt() -> Result<Credentials, error::Error> {
         let username: String = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("Username")
             .interact_text()?;
@@ -65,7 +65,7 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn load() -> Result<Self, error::ConfigError> {
+    pub fn load() -> Result<Self, error::Error> {
         if Path::new(CONFIG_FILE).exists() {
             Self::load_from_file()
         } else {
@@ -74,21 +74,21 @@ impl Config {
         }
     }
 
-    fn load_from_file() -> Result<Self, error::ConfigError> {
+    fn load_from_file() -> Result<Self, error::Error> {
         let content = fs::read_to_string(CONFIG_FILE)?;
         let config: Config = toml::from_str(&content)?;
         Ok(config)
     }
 
-    fn create_new() -> Result<Self, error::ConfigError> {
+    fn create_new() -> Result<Self, error::Error> {
         let credentials = Credentials::prompt()?;
         let save_path = Input::with_theme(&ColorfulTheme::default())
             .with_prompt("Save Downloads To")
-            .validate_with(|input: &String| -> Result<(), &str> {
+            .validate_with(|input: &String| -> Result<(), error::Error> {
                 if is_valid_path(input) {
                     Ok(())
                 } else {
-                    Err("Invalid path")
+                    Err(error::Error::InvalidPath)
                 }
             })
             .interact_text()?
@@ -111,7 +111,7 @@ impl Config {
         Ok(config)
     }
 
-    pub fn save(&self) -> Result<(), error::ConfigError> {
+    pub fn save(&self) -> Result<(), error::Error> {
         let toml_string = toml::to_string_pretty(self)?;
         fs::write(CONFIG_FILE, toml_string)?;
         Ok(())
@@ -122,7 +122,7 @@ impl Config {
         &mut self,
         username: String,
         password: String,
-    ) -> Result<(), error::ConfigError> {
+    ) -> Result<(), error::Error> {
         self.credentials = Credentials { username, password };
         self.save()
     }
